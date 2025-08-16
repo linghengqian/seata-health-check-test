@@ -24,32 +24,63 @@ public class SimpleTest {
 
     @Test
     void test() {
-        assertThat(System.getProperty("service.default.grouplist"), is(nullValue()));
-        this.testWithSeataClient("apache/seata-server:2.4.0");
+        this.testWithV240();
+        this.testWithV250();
     }
 
-    private void testWithSeataClient(String imageName) {
-        GenericContainer<?> seataContainer = new GenericContainer<>(imageName);
-        seataContainer.withExposedPorts(7091, 8091).waitingFor(
-                Wait.forHttp("/health").forPort(7091).forStatusCode(200).forResponsePredicate("ok"::equals)
-        );
-        seataContainer.start();
-        System.setProperty("service.default.grouplist", seataContainer.getHost() + ":" + seataContainer.getMappedPort(8091));
-        TMClient.init("test-first", "default_tx_group");
-        RMClient.init("test-first", "default_tx_group");
-        HikariConfig config = new HikariConfig();
-        config.setDriverClassName("org.testcontainers.jdbc.ContainerDatabaseDriver");
-        config.setJdbcUrl("jdbc:tc:postgresql:17.6-trixie:///demo_ds_0?TC_INITSCRIPT=init.sql");
-        DataSource hikariDataSource = new HikariDataSource(config);
-        DataSource seataDataSource = new DataSourceProxy(hikariDataSource);
-        Awaitility.await().atMost(Duration.ofSeconds(15L)).ignoreExceptions().until(() -> {
-            seataDataSource.getConnection().close();
-            return true;
-        });
-        System.clearProperty("service.default.grouplist");
-        TmNettyRemotingClient.getInstance().destroy();
-        RmNettyRemotingClient.getInstance().destroy();
-        ConfigurationFactory.reload();
-        seataContainer.close();
+    private void testWithV240() {
+        assertThat(System.getProperty("service.default.grouplist"), is(nullValue()));
+        try (GenericContainer<?> seataContainer = new GenericContainer<>("apache/seata-server:2.4.0")
+                .withExposedPorts(7091, 8091)
+                .waitingFor(
+                        Wait.forHttp("/health").forPort(7091).forStatusCode(200).forResponsePredicate("ok"::equals)
+                )
+        ) {
+            seataContainer.start();
+            System.setProperty("service.default.grouplist", seataContainer.getHost() + ":" + seataContainer.getMappedPort(8091));
+            TMClient.init("test-first", "default_tx_group");
+            RMClient.init("test-first", "default_tx_group");
+            HikariConfig config = new HikariConfig();
+            config.setDriverClassName("org.testcontainers.jdbc.ContainerDatabaseDriver");
+            config.setJdbcUrl("jdbc:tc:mysql:9.2.0:///demo_ds?TC_INITSCRIPT=init.sql");
+            DataSource hikariDataSource = new HikariDataSource(config);
+            DataSource seataDataSource = new DataSourceProxy(hikariDataSource);
+            Awaitility.await().atMost(Duration.ofSeconds(15L)).ignoreExceptions().until(() -> {
+                seataDataSource.getConnection().close();
+                return true;
+            });
+            System.clearProperty("service.default.grouplist");
+            TmNettyRemotingClient.getInstance().destroy();
+            RmNettyRemotingClient.getInstance().destroy();
+            ConfigurationFactory.reload();
+        }
+    }
+
+    private void testWithV250() {
+        assertThat(System.getProperty("service.default.grouplist"), is(nullValue()));
+        try (GenericContainer<?> seataContainer = new GenericContainer<>("apache/seata-server:2.5.0")
+                .withExposedPorts(8091)
+                .waitingFor(
+                        Wait.forHttp("/health").forPort(8091).forStatusCode(200).forResponsePredicate("\"ok\""::equals)
+                )
+        ) {
+            seataContainer.start();
+            System.setProperty("service.default.grouplist", seataContainer.getHost() + ":" + seataContainer.getMappedPort(8091));
+            TMClient.init("test-first", "default_tx_group");
+            RMClient.init("test-first", "default_tx_group");
+            HikariConfig config = new HikariConfig();
+            config.setDriverClassName("org.testcontainers.jdbc.ContainerDatabaseDriver");
+            config.setJdbcUrl("jdbc:tc:mysql:9.2.0:///demo_ds?TC_INITSCRIPT=init.sql");
+            DataSource hikariDataSource = new HikariDataSource(config);
+            DataSource seataDataSource = new DataSourceProxy(hikariDataSource);
+            Awaitility.await().atMost(Duration.ofSeconds(15L)).ignoreExceptions().until(() -> {
+                seataDataSource.getConnection().close();
+                return true;
+            });
+            System.clearProperty("service.default.grouplist");
+            TmNettyRemotingClient.getInstance().destroy();
+            RmNettyRemotingClient.getInstance().destroy();
+            ConfigurationFactory.reload();
+        }
     }
 }
